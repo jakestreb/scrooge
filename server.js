@@ -8,6 +8,7 @@ const express = require("express");
 const app = express();
 
 const telegramToken = '343067946:AAFRZEJrGa4LSwm3pGYrZchgh4UhQAXHnY4';
+const port = process.env.PORT;
 const replyFuncs = {
   'telegram': (message, id) => respondToTelegram(message, id),
   'cli': message => { console.log(message); }
@@ -56,7 +57,11 @@ function forwardToScrooge(source, id, message) {
   scrooges[id].receiveMessage(message);
 }
 
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`);
+});
+
 // Initialize command line scrooge.
-// process.stdin.resume();
-// process.stdin.setEncoding('utf8');
-// process.stdin.on('data', text => { forwardToScrooge('cli', 'cli', text.trim()); });
+process.stdin.resume();
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', text => { forwardToScrooge('cli', 'cli', text.trim()); });
