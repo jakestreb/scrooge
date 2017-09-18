@@ -57,6 +57,6 @@ function forwardToScrooge(source, id, message) {
 }
 
 // Initialize command line scrooge.
-process.stdin.resume();
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', text => { forwardToScrooge('cli', 'cli', text.trim()); });
+// process.stdin.resume();
+// process.stdin.setEncoding('utf8');
+// process.stdin.on('data', text => { forwardToScrooge('cli', 'cli', text.trim()); });
