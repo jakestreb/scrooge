@@ -1,0 +1,2 @@
+# scrooge
+stock price bot
