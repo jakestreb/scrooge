@@ -33,7 +33,7 @@ class Scrooge {
   }
 
   parseMessage(message) {
-    let [symbol, date, time, quantity] = message.split(' ');
+    let [symbol, date, time, quantity] = message.toLowerCase().split(' ');
     time = time || '';
     // chrono prefers '-' to '/' for dates
     date = date ? date.replace(/\//g, '-') : null;
