@@ -18,6 +18,7 @@ class Scrooge {
     }
     return Promise.try(() => {
       let request = this.parseMessage(message);
+      console.warn('REQUEST', request);
       return this.getPrice(request);
     })
     .then(price => {
@@ -68,12 +69,14 @@ class Scrooge {
   getPrice(request) {
     let nextDay = new Date(request.date.getTime());
     nextDay.setDate(nextDay.getDate() + 1);
+    console.warn('next day', nextDay);
     return yahooFinance.historical({
       symbol: request.symbol,
       from: request.date,
       to: nextDay
     })
     .then(quotes => {
+      console.warn('quotes', quotes);
       let quote = quotes[0];
       return quote[request.time] * request.quantity;
     })

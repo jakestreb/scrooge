@@ -57,9 +57,11 @@ function forwardToScrooge(source, id, message) {
   scrooges[id].receiveMessage(message);
 }
 
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
+if (port) {
+  app.listen(port, () => {
+    console.log(`Listening on port ${port}`);
+  });
+}
 
 // Initialize command line scrooge.
 process.stdin.resume();
