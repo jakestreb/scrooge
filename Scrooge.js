@@ -72,7 +72,7 @@ class Scrooge {
   getPrice(request) {
     return rp({
       url: `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${request.symbol}` +
-        `&outputsize=compact&apikey=${alphaVantageKey}`,
+        `&outputsize=full&apikey=${alphaVantageKey}`,
       method: 'GET'
     })
     .catch(err => {
