@@ -34,7 +34,10 @@ class Scrooge {
   }
 
   parseMessage(message) {
+    // Get helpful dates
     let now = new Date();
+    let tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    tomorrow.setDate(tomorrow.getDate() + 1);
     let strs = {};
     let parts = message.toLowerCase().split(' ');
     // Get the symbol
@@ -50,10 +53,12 @@ class Scrooge {
     let parsedDate = this._parseDate(strs.date || '');
     let parsedTime = this._getOpenOrClose(strs.time || '');
     let parsedQuantity = parseInt(strs.quantity || '', 10);
-    if ((strs.date && !parsedDate) || parsedDate > now) {
-      throw new UserError(`Bad date\n${this.getHelp()}`);
+    if (strs.date && !parsedDate) {
+      throw new UserError(`I need a US date or a day of the week\n\n${this.getHelp()}`);
+    } else if (parsedDate >= tomorrow) {
+      throw new UserError(`Date should be today or in the past\n\n${this.getHelp()}`);
     } else if (strs.time && !parsedTime) {
-      throw new UserError(`Bad time\n${this.getHelp()}`);
+      throw new UserError(`Time should be open or close\n\n${this.getHelp()}`);
     }
     // Change now into yesterday for the default date
     now.setDate(now.getDate() - 1);
