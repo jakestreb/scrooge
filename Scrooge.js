@@ -2,8 +2,10 @@
 
 const Promise = require('bluebird');
 const chrono = require('chrono-node');
-const yahooFinance = require('yahoo-finance');
+const rp = require('request-promise');
 const UserError = require('./UserError.js');
+
+const alphaVantageKey = 'U6GOYHSHYPDGTMO7';
 
 class Scrooge {
   constructor(id, replyFunc) {
@@ -18,11 +20,10 @@ class Scrooge {
     }
     return Promise.try(() => {
       let request = this.parseMessage(message);
-      console.warn('REQUEST', request);
       return this.getPrice(request);
     })
-    .then(price => {
-      this.replyFunc(`${price}`);
+    .then(priceMsg => {
+      this.replyFunc(priceMsg);
     })
     .catch(UserError, err => {
       this.replyFunc(err.message);
@@ -36,8 +37,9 @@ class Scrooge {
   parseMessage(message) {
     let [symbol, date, time, quantity] = message.toLowerCase().split(' ');
     time = time || '';
-    // chrono prefers '-' to '/' for dates
-    date = date ? date.replace(/\//g, '-') : null;
+    // chrono prefers '-' to '/' for dates, and needs the current year
+    date = date ? date.replace(/\//g, '-') : '';
+    date += date.match(/\d{1,2}\-\d{1,2}/g) ? `-${new Date().getYear()}` : '';
     let parsedDate = chrono.parseDate(date);
     let parsedTime = time.match(/^c/gi) ? 'close' : (time.match(/^o/gi) ? 'open' : null);
     let parsedQuantity = parseInt(quantity, 10);
@@ -51,10 +53,11 @@ class Scrooge {
       throw new UserError(`Bad quantity\n${this.getHelp()}`);
     }
     return {
-      symbol: symbol,
-      date: parsedDate || chrono.parseDate('Yesterday'),
+      symbol: symbol.toUpperCase(),
+      date: parsedDate || chrono.parseDate('Today'),
       time: parsedTime || 'close',
-      quantity: parsedQuantity || 1
+      quantity: parsedQuantity || 1,
+      explicitDate: Boolean(parsedDate) // Indicates whether a date was given explicitly
     };
   }
 
@@ -67,23 +70,53 @@ class Scrooge {
   }
 
   getPrice(request) {
-    let nextDay = new Date(request.date.getTime());
-    nextDay.setDate(nextDay.getDate() + 1);
-    console.warn('next day', nextDay);
-    return yahooFinance.historical({
-      symbol: request.symbol,
-      from: request.date,
-      to: nextDay
-    })
-    .then(quotes => {
-      console.warn('quotes', quotes);
-      let quote = quotes[0];
-      return quote[request.time] * request.quantity;
+    return rp({
+      url: `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${request.symbol}` +
+        `&outputsize=compact&apikey=${alphaVantageKey}`,
+      method: 'GET'
     })
     .catch(err => {
       console.error(err);
-      throw new UserError(`No stock data found`);
+      throw new UserError(`Problem with stock price api`);
+    })
+    .then(result => {
+      result = JSON.parse(result);
+      let pricesByDate = result["Time Series (Daily)"];
+      if (pricesByDate) {
+        let date = request.date;
+        let quantity = request.quantity;
+        let time = request.time;
+        let timeStr = time === 'open' ? '1. open' : '4. close';
+        for (let i = 0; i < 5; i++) {
+          let iso = this._getISODate(date);
+          let prices = pricesByDate[iso];
+          if (prices && prices[timeStr]) {
+            let price = parseFloat(prices[timeStr]);
+            return `${price * quantity} on ${time} ${this._getUSADate(date)}` +
+              (quantity > 1 ? ` (${price} per share)` : ``);
+          } else if (request.explicitDate) {
+            throw new UserError(`No data for ${request.symbol} on ${this._getUSADate(date)}`);
+          } else {
+            date = this._getPreviousDate(date);
+          }
+        }
+      }
+      throw new UserError(`Request for stock data failed`);
     });
+  }
+
+  _getISODate(date) {
+    return date.toISOString().split('T')[0];
+  }
+
+  _getUSADate(date) {
+    let [year, month, day] = this._getISODate(date).split('-');
+    return `${month}-${day}-${year}`;
+  }
+
+  _getPreviousDate(date) {
+    date.setDate(date.getDate() - 1);
+    return date;
   }
 }
 

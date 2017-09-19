@@ -10,8 +10,8 @@ const app = express();
 const telegramToken = '343067946:AAFRZEJrGa4LSwm3pGYrZchgh4UhQAXHnY4';
 const port = process.env.PORT;
 const replyFuncs = {
-  'telegram': (message, id) => respondToTelegram(message, id),
-  'cli': message => { console.log(message); }
+  'telegram': (id, message) => respondToTelegram(message, id),
+  'cli': (id, message) => { console.log(message); }
 };
 const scrooges = [];
 
@@ -48,7 +48,7 @@ function respondToTelegram(message, id) {
 function forwardToScrooge(source, id, message) {
   if (!scrooges[id]) {
     // New scrooge client
-    scrooges[id] = new Scrooge(id, replyFuncs[source]);
+    scrooges[id] = new Scrooge(id, replyFuncs[source].bind(null, id));
     // TODO: Save scrooge clients.
     // if (source !== 'cli') {
     //   saveScrooge(source, id);
