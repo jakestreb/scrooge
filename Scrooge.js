@@ -1,7 +1,6 @@
 'use strict';
 
 const Promise = require('bluebird');
-const chrono = require('chrono-node');
 const rp = require('request-promise');
 const UserError = require('./UserError.js');
 
@@ -36,26 +35,31 @@ class Scrooge {
 
   parseMessage(message) {
     let now = new Date();
-    let [symbol, date, time, quantity] = message.toLowerCase().split(' ');
-    time = time || '';
-    // chrono prefers '-' to '/' for dates, and needs the current year
-    date = date ? date.replace(/\//g, '-') : '';
-    date += date.match(/\d{1,2}\-\d{1,2}/g) ? `-${now.getFullYear()}` : '';
-    let parsedDate = chrono.parseDate(date);
-    let parsedTime = time.match(/^c/gi) ? 'close' : (time.match(/^o/gi) ? 'open' : null);
-    let parsedQuantity = parseInt(quantity, 10);
+    let strs = {};
+    let parts = message.toLowerCase().split(' ');
+    // Get the symbol
+    let symbol = parts[0];
     if (!symbol || symbol.length > 5 || symbol === 'help') {
       throw new UserError(this.getHelp());
-    } else if ((date && !parsedDate) || parsedDate > now) {
-      throw new UserError(`Bad date\n${this.getHelp()}`);
-    } else if (time && !parsedTime) {
-      throw new UserError(`Bad time\n${this.getHelp()}`);
-    } else if (quantity && isNaN(parsedQuantity)) {
-      throw new UserError(`Bad quantity\n${this.getHelp()}`);
     }
+    // Get everything else
+    parts.slice(1).forEach(str => {
+      let type = this._identifyItem(str);
+      if (type) { strs[type] = str; }
+    });
+    let parsedDate = this._parseDate(strs.date || '');
+    let parsedTime = this._getOpenOrClose(strs.time || '');
+    let parsedQuantity = parseInt(strs.quantity || '', 10);
+    if ((strs.date && !parsedDate) || parsedDate > now) {
+      throw new UserError(`Bad date\n${this.getHelp()}`);
+    } else if (strs.time && !parsedTime) {
+      throw new UserError(`Bad time\n${this.getHelp()}`);
+    }
+    // Change now into yesterday for the default date
+    now.setDate(now.getDate() - 1);
     return {
       symbol: symbol.toUpperCase(),
-      date: parsedDate || chrono.parseDate('Today'),
+      date: parsedDate || now,
       time: parsedTime || 'close',
       quantity: parsedQuantity || 1,
       explicitDate: Boolean(parsedDate) // Indicates whether a date was given explicitly
@@ -63,17 +67,17 @@ class Scrooge {
   }
 
   getHelp() {
-    return `Ask me about a stock price, e.g.\n` +
-      `  aapl\n` +
-      `  axp yesterday open\n` +
-      `  wmt 10-3 close 12\n` +
-      `Defaults to the most recent close price`;
+    return `Ask me about a stock price (for quantity, on date, at open/close), e.g.\n` +
+      `aapl\n` +
+      `wmt 12 open\n` +
+      `axp close yesterday\n` +
+      `qqq 8-12 89`;
   }
 
   getPrice(request) {
     return rp({
       url: `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${request.symbol}` +
-        `&outputsize=full&apikey=${alphaVantageKey}`,
+        `&outputsize=compact&apikey=${alphaVantageKey}`,
       method: 'GET'
     })
     .catch(err => {
@@ -88,13 +92,14 @@ class Scrooge {
         let quantity = request.quantity;
         let time = request.time;
         let timeStr = time === 'open' ? '1. open' : '4. close';
+        // Try the last 5 days (if the date was not explicitly given)
         for (let i = 0; i < 5; i++) {
           let iso = this._getISODate(date);
           let prices = pricesByDate[iso];
           if (prices && prices[timeStr]) {
             let price = parseFloat(prices[timeStr]);
-            return `${price * quantity} on ${time} ${this._getUSADate(date)}` +
-              (quantity > 1 ? ` (${price} per share)` : ``);
+            return `${(price * quantity).toFixed(2)} on ${time} ${this._getUSADate(date)}` +
+              (quantity > 1 ? ` (${price.toFixed(2)} per share)` : ``);
           } else if (request.explicitDate) {
             throw new UserError(`No data for ${request.symbol} on ${this._getUSADate(date)}`);
           } else {
@@ -102,8 +107,51 @@ class Scrooge {
           }
         }
       }
-      throw new UserError(`Request for stock data failed`);
+      throw new UserError(this.getHelp());
     });
+  }
+
+  // Returns 'quantity', 'time', 'date', or null.
+  _identifyItem(item) {
+    if (!item) {
+      return null;
+    } else if (item.match(/^\d+$/g)) {
+      return 'quantity';
+    } else if (item.match(/^[co]/gi)) {
+      return 'time';
+    } else {
+      return 'date';
+    }
+  }
+
+  _parseDate(dateStr) {
+    dateStr = dateStr.toLowerCase();
+    let now = new Date();
+    let weekday = [/^sun/g, /^mon/g, /^tue/g, /^wed/g, /^thu/g, /^fri/g];
+    if (dateStr.match(/^\D+$/g)) {
+      // Used a word for the date
+      let desiredDay = weekday.findIndex(regex => dateStr.match(regex));
+      let offset = desiredDay > 0 ? (now.getDay() - desiredDay + 7) % 7 :
+        (dateStr === 'today' ? 0 : (dateStr === 'yesterday' ? 1 : -1));
+      if (offset >= 0) {
+        now.setDate(now.getDate() - offset);
+        return now;
+      }
+    } else {
+      // Used the USA date format
+      let result = /^(\d{1,2})[\-\/](\d{1,2})(?:[\-\/](\d{2,4}))?$/g.exec(dateStr);
+      if (result) {
+        let currentYear = now.getFullYear();
+        let year = result[3] ? parseInt(result[3], 10) : currentYear;
+        if (year < 100) {
+          // Convert to 4 digit year
+          let first = currentYear - 50;
+          year = first + this.mod(year - first, 100);
+        }
+        return new Date(year, parseInt(result[1], 10) - 1, parseInt(result[2], 10));
+      }
+    }
+    return null;
   }
 
   _getISODate(date) {
@@ -118,6 +166,14 @@ class Scrooge {
   _getPreviousDate(date) {
     date.setDate(date.getDate() - 1);
     return date;
+  }
+
+  _getOpenOrClose(time) {
+    return time.match(/^c/gi) ? 'close' : (time.match(/^o/gi) ? 'open' : null);
+  }
+
+  _mod(n, amt) {
+    return ((n % amt) + amt) % amt;
   }
 }
 
