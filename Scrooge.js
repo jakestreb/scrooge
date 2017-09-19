@@ -63,10 +63,10 @@ class Scrooge {
 
   getHelp() {
     return `Ask me about a stock price, e.g.\n` +
-      ` aapl\n` +
-      ` axp yesterday open\n` +
-      ` wmt 10-3 close 12\n` +
-      `Defaults to yesterday's close price for 1 share`;
+      `  aapl\n` +
+      `  axp yesterday open\n` +
+      `  wmt 10-3 close 12\n` +
+      `Defaults to the most recent close price`;
   }
 
   getPrice(request) {
