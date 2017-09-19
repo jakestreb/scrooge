@@ -40,12 +40,14 @@ class Scrooge {
     // chrono prefers '-' to '/' for dates, and needs the current year
     date = date ? date.replace(/\//g, '-') : '';
     date += date.match(/\d{1,2}\-\d{1,2}/g) ? `-${new Date().getYear()}` : '';
+    console.warn('date', date);
     let parsedDate = chrono.parseDate(date);
+    console.warn('parsedDate', parsedDate);
     let parsedTime = time.match(/^c/gi) ? 'close' : (time.match(/^o/gi) ? 'open' : null);
     let parsedQuantity = parseInt(quantity, 10);
     if (!symbol || symbol.length > 5 || symbol === 'help') {
       throw new UserError(this.getHelp());
-    } else if (date && !parsedDate || parsedDate > Date.now()) {
+    } else if ((date && !parsedDate) || parsedDate > new Date()) {
       throw new UserError(`Bad date\n${this.getHelp()}`);
     } else if (time && !parsedTime) {
       throw new UserError(`Bad time\n${this.getHelp()}`);
