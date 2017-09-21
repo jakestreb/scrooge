@@ -103,10 +103,10 @@ class Scrooge {
           let prices = pricesByDate[iso];
           if (prices && prices[timeStr]) {
             let price = parseFloat(prices[timeStr]);
-            return `${(price * quantity).toFixed(2)} on ${time} ${this._getUSADate(date)}` +
+            return `${(price * quantity).toFixed(2)} on ${time} ${date.toLocaleDateString()}` +
               (quantity > 1 ? ` (${price.toFixed(2)} per share)` : ``);
           } else if (request.explicitDate) {
-            throw new UserError(`No data for ${request.symbol} on ${this._getUSADate(date)}`);
+            throw new UserError(`No data for ${request.symbol} on ${date.toLocaleDateString()}`);
           } else {
             date = this._getPreviousDate(date);
           }
@@ -160,12 +160,12 @@ class Scrooge {
   }
 
   _getISODate(date) {
-    return date.toISOString().split('T')[0];
+    let [month, day, year] = date.toLocaleDateString().split('/');
+    return `${year}-${this._padZeros(month, 2)}-${this._padZeros(day, 2)}`;
   }
 
-  _getUSADate(date) {
-    let [year, month, day] = this._getISODate(date).split('-');
-    return `${month}-${day}-${year}`;
+  _padZeros(str, totalLen) {
+    return '0'.repeat(totalLen - str.length) + str;
   }
 
   _getPreviousDate(date) {
